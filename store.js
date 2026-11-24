@@ -123,6 +123,8 @@ const R = {
     await mutate(x => { x.users = x.users.filter(y => y.id !== id); x.devices.filter(d => d.user === id).forEach(d => d.revoked = true); }); return { ok: true };
   },
   // devices that have logged in (owner, 2026-11-24)
+  // pull-to-refresh: read the latest file from GitHub now, not from the 15 s cache
+  "POST /api/refresh": async () => { await fetchDoc(true); return { ok: true }; },
   "GET /api/log": async () => { await ensure(); needUser(); return [...(doc.log || [])].reverse().slice(0, 8); },
   "GET /api/devices": async () => { await ensure(); needUser(); return doc.devices.map(d => ({ ...d, me: d.id === gh.device(), push: !!doc.push[d.id] })).sort((a, b) => (b.last || "").localeCompare(a.last || "")); },
   "POST /api/devices/remove": async b => { await ensure(); needUser(); await mutate(x => { const d = x.devices.find(y => y.id === b.id); if (d) d.revoked = true; delete x.push[b.id]; }); return { ok: true }; },

@@ -62,7 +62,7 @@ const token = { get: () => { try { return localStorage.getItem(KEY) || ""; } cat
 // On GitHub Pages there is no server: the data lives in the repo (store.js). Locally the Node server answers.
 const GH = location.hostname.endsWith("github.io") || /[?&]gh\b/.test(location.search);
 let storeMod = null;
-const store = () => storeMod || (storeMod = import("./store.js?v=2"));
+const store = () => storeMod || (storeMod = import("./store.js?v=3"));
 async function api(path, body) {
   if (GH) {
     const m = await store();
@@ -493,6 +493,39 @@ async function enablePush() {
     await api("/api/push", { sub: sub.toJSON() }); toast("اعلان‌ها روی این دستگاه روشن شد"); devicesPart();
   } catch (e) { toast("روشن کردن اعلان نشد: " + e.message, true); }
 }
+
+// ---------- pull to refresh (owner, 2026-11-25): a balloon inflates as you pull, floats while loading, pops when done ----------
+(() => {
+  const el = document.createElement("div"); el.className = "ptr"; el.setAttribute("aria-hidden", "true");
+  el.innerHTML = `<div class="ptr-b"><svg viewBox="0 0 60 92"><defs><radialGradient id="ptrg" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".25" stop-color="var(--accent2)"/><stop offset="1" stop-color="var(--accent)"/></radialGradient></defs>
+    <path class="str" d="M30 62 C26 70 34 76 30 84 C27 89 31 91 30 92"/><ellipse cx="30" cy="31" rx="24" ry="29" fill="url(#ptrg)"/><path d="M26 59 L34 59 L30 64 Z" fill="var(--accent)"/><ellipse cx="21" cy="19" rx="5" ry="8" fill="#fff" opacity=".45" transform="rotate(-25 21 19)"/></svg>
+    <i class="ring"></i></div><span class="ptr-t"></span>`;
+  document.body.append(el);
+  const b = $(".ptr-b", el), t = $(".ptr-t", el), MAX = 130, GO = 78;
+  let y0 = null, d = 0, busy = false, armed = false;
+  const set = v => { d = v; const p = Math.min(1, v / GO);
+    el.style.transform = `translate(-50%, ${Math.min(v, MAX) - 70}px)`; b.style.transform = `scale(${.45 + .55 * p}) rotate(${(1 - p) * -14}deg)`; el.style.opacity = Math.min(1, v / 30);
+    const ready = v >= GO; if (ready !== armed) { armed = ready; el.classList.toggle("ready", ready); t.textContent = ready ? "رها کنید" : "بکشید"; if (ready && navigator.vibrate) navigator.vibrate(8); } };
+  const reset = () => { el.classList.add("back"); set(0); setTimeout(() => el.classList.remove("back", "loading", "pop", "ready"), 400); };
+  addEventListener("touchstart", e => { if (busy || scrollY > 0 || $("dialog[open]") || e.touches.length > 1) return y0 = null; y0 = e.touches[0].clientY; }, { passive: true });
+  addEventListener("touchmove", e => { if (y0 == null || busy) return; const dy = e.touches[0].clientY - y0; if (dy <= 0) { if (d) set(0); return; }
+    if (scrollY > 0) return; e.preventDefault(); set(dy * .55); }, { passive: false });
+  addEventListener("touchend", async () => {
+    if (y0 == null || busy) return; y0 = null;
+    if (!armed) return reset();
+    busy = true; el.classList.add("back", "loading"); el.classList.remove("ready"); t.textContent = "در حال به‌روزرسانی…"; set(GO); el.classList.add("loading");
+    try {
+      // a newer version of the app? reload the page; otherwise just fetch the latest data
+      const html = await (await fetch("index.html", { cache: "no-store" })).text(), mine = $('script[src^="app.js"]')?.getAttribute("src");
+      if (mine && !html.includes(mine)) { t.textContent = "نسخهٔ تازه…"; const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update().catch(() => {}); setTimeout(() => location.reload(), 500); return; }
+      if (GH) await api("/api/refresh", {});
+      if (S.ev) { S.data = await api(`/api/events/${S.ev.id}`); S.ev = S.data.event; S.stamp = S.ev.updated; render(true); } else await listView();
+      el.classList.add("pop"); confetti(b); t.textContent = "به‌روز شد";
+      await new Promise(r => setTimeout(r, 650));
+    } catch (err) { toast(err.message || "به‌روزرسانی نشد", true); }
+    busy = false; reset();
+  });
+})();
 
 // ---------- live: other admins' edits show up ----------
 setInterval(async () => {
