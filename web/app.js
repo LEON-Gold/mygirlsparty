@@ -288,8 +288,10 @@ VIEWS.guests = m => {
 function editGuest(g) {
   const groups = [...new Set(["فامیل", "دوستان", "همکاران", "بچه‌ها", ...S.data.guests.map(x => x.grp).filter(Boolean)])];
   // the WhatsApp text carries this guest's own invitation link (envelope page, owner 2026-11-25)
-  const wa = g.phone && g.id ? `https://wa.me/${latin(g.phone).replace(/\D/g, "").replace(/^0/, "98")}?text=${encodeURIComponent(inviteText(S.ev, g))}` : "";
-  dialog(`<div class="dlg-head"><h3>${g.id ? "ویرایش مهمان" : "مهمان جدید"}</h3></div>
+  // send the guest's own invitation: phone's share sheet (any app) or straight to SMS (owner, 2026-11-25)
+  const apple = /iPhone|iPad|Macintosh/.test(navigator.userAgent);
+  const sms = g.phone && g.id ? `sms:${latin(g.phone).replace(/[^\d+]/g, "")}${apple ? "&" : "?"}body=${encodeURIComponent(inviteText(S.ev, g))}` : "";
+  const dlg = dialog(`<div class="dlg-head"><h3>${g.id ? "ویرایش مهمان" : "مهمان جدید"}</h3></div>
     <label class="field"><span>نام (یا نام خانواده)</span><input name="name" type="text" value="${esc(g.name)}" required></label>
     <div class="grid2"><label class="field"><span>تلفن</span><input name="phone" type="tel" dir="ltr" value="${esc(g.phone)}"></label>
       <label class="field"><span>گروه</span><input name="grp" type="text" list="grps" value="${esc(g.grp)}"><datalist id="grps">${groups.map(x => `<option value="${esc(x)}">`).join("")}</datalist></label>
@@ -298,11 +300,20 @@ function editGuest(g) {
     <label class="field"><span>وضعیت</span><select name="status">${Object.entries(STATUS).map(([k, t]) => `<option value="${k}" ${k === g.status ? "selected" : ""}>${t}</option>`).join("")}</select></label>
     <label class="field"><span>یادداشت</span><textarea name="note" rows="2">${esc(g.note)}</textarea></label>
     ${g.by ? `<p class="muted" style="font-size:12px;margin:0">آخرین تغییر: ${esc(g.by)}</p>` : ""}`
-    + foot(`${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">${ic("chat")}دعوت در واتس‌اپ</a>` : ""}${g.id ? `<button class="btn ghost danger" value="ok" data-del>${ic("trash")}حذف</button>` : ""}`), async (f, b) => {
+    + foot(`${g.id ? `<button class="btn" type="button" data-share>${ic("share")}فرستادن دعوت‌نامه</button>` : ""}${sms ? `<a class="btn" href="${esc(sms)}">${ic("chat")}پیامک</a>` : ""}${g.id ? `<button class="btn ghost danger" value="ok" data-del>${ic("trash")}حذف</button>` : ""}`), async (f, b) => {
     if (b.hasAttribute("data-del")) { if (!confirm(`«${g.name}» حذف شود؟`)) return false; await api(`/api/guests/${g.id}/delete`, {}); toast("حذف شد"); return reload(); }
     await api(`/api/events/${S.ev.id}/guests`, { id: g.id, name: f.elements.name.value, phone: latin(f.phone.value), grp: f.grp.value, adults: num(f.adults.value), kids: num(f.kids.value), status: f.status.value, note: f.note.value });
     toast("ذخیره شد"); await reload();
   });
+  $("[data-share]", dlg) && ($("[data-share]", dlg).onclick = () => shareInvite(S.ev, g));
+}
+// share sheet when the phone has one (WhatsApp, Telegram, SMS, …); otherwise copy the text
+async function shareInvite(e, g) {
+  const text = inviteText(e, g);
+  try {
+    if (navigator.share) await navigator.share({ text });
+    else { await navigator.clipboard.writeText(text); toast("متن دعوت کپی شد؛ هر جا خواستید بچسبانید"); }
+  } catch (err) { if (err && err.name !== "AbortError") { try { await navigator.clipboard.writeText(text); toast("متن دعوت کپی شد"); } catch { toast("فرستادن نشد", true); } } }
 }
 
 // ---------- to-dos ----------
@@ -401,12 +412,12 @@ VIEWS.party = m => {
       <div class="kv"><span>مکان</span><b>${esc(e.place) || "—"}</b></div>${e.address ? `<p class="muted" style="margin:4px 0">${esc(e.address)}</p>` : ""}
       ${e.map ? `<a class="btn sm" href="${esc(e.map)}" target="_blank" rel="noopener" style="margin-top:6px">نقشه</a>` : ""}
       ${e.invite ? `<p style="white-space:pre-line;margin:12px 0 0;padding:10px 12px;border-radius:12px;background:var(--soft)">${esc(e.invite)}</p>` : ""}
-      <div class="dlg-foot"><button class="btn primary" type="button" id="ed">${ic("edit")}ویرایش جشن</button>${navigator.share ? `<button class="btn" type="button" id="sh">${ic("share")}فرستادن دعوت‌نامه</button>` : ""}<a class="btn" href="${inviteLink(e)}" target="_blank" rel="noopener">${ic("sparkle")}پیش‌نمایش دعوت‌نامه</a></div>
-      <p class="muted" style="font-size:12.5px;margin:8px 0 0">در صفحهٔ هر مهمان، «دعوت در واتس‌اپ» دعوت‌نامهٔ مخصوص همان مهمان را با اسمش می‌فرستد.</p></section>
+      <div class="dlg-foot"><button class="btn primary" type="button" id="ed">${ic("edit")}ویرایش جشن</button><button class="btn" type="button" id="sh">${ic("share")}فرستادن دعوت‌نامه</button><a class="btn" href="${inviteLink(e)}" target="_blank" rel="noopener">${ic("sparkle")}پیش‌نمایش دعوت‌نامه</a></div>
+      <p class="muted" style="font-size:12.5px;margin:8px 0 0">در صفحهٔ هر مهمان، «فرستادن دعوت‌نامه» (واتس‌اپ، تلگرام، پیامک یا هر جای دیگر) یا «پیامک»، دعوت‌نامهٔ مخصوص همان مهمان را با اسمش می‌فرستد.</p></section>
     <section class="card panel"><h3>کارهای دیگر</h3><div class="dlg-foot" style="margin:0"><button class="btn" type="button" id="adm">${ic("users")}ادمین‌ها</button><button class="btn ghost danger" type="button" id="del">${ic("trash")}حذف این جشن</button></div></section>`;
   $("#ed").onclick = () => editEvent(e);
   $("#adm").onclick = adminsView;
-  $("#sh") && ($("#sh").onclick = () => navigator.share({ text: inviteText(e) }).catch(() => {}));
+  $("#sh").onclick = () => shareInvite(e);
   $("#del").onclick = async () => { if (!confirm(`«${e.title}» با همهٔ مهمان‌ها، کارها و خریدهایش حذف شود؟`)) return; await api(`/api/events/${e.id}/delete`, {}); toast("حذف شد"); listView(); };
 };
 function editEvent(e) {
