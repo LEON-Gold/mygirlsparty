@@ -48,7 +48,16 @@ const shares = () => computeShares(S.data.guests, S.data.items, S.ev);
 
 const KEY = "party.token";
 const token = { get: () => { try { return localStorage.getItem(KEY) || ""; } catch { return ""; } }, set: t => { try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch {} } };
+// On GitHub Pages there is no server: the data lives in the repo (store.js). Locally the Node server answers.
+const GH = location.hostname.endsWith("github.io") || /[?&]gh\b/.test(location.search);
+let storeMod = null;
+const store = () => storeMod || (storeMod = import("./store.js?v=1"));
 async function api(path, body) {
+  if (GH) {
+    const m = await store();
+    try { return await m.ghApi(body ? "POST" : "GET", path, body); }
+    catch (e) { if (e.status === 401 && path !== "/api/login") { token.set(""); location.reload(); } throw new Error(e.message || "خطا"); }
+  }
   const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", ...(token.get() ? { Authorization: "Bearer " + token.get() } : {}) }, body: body ? JSON.stringify(body) : undefined });
   let d = {}; try { d = await r.json(); } catch {}
   if (r.status === 401 && path !== "/api/login") { token.set(""); location.reload(); }
@@ -115,6 +124,22 @@ function loginView(msg = "") {
   $("#lf").onsubmit = async e => {
     e.preventDefault(); const f = e.target;
     try { const r = await api("/api/login", { u: latin(f.u.value), p: latin(f.p.value) }); token.set(r.token); boot(); } catch (err) { $(".err", f).textContent = err.message; }
+  };
+}
+
+// ---------- connect this device to GitHub (first time only) ----------
+async function connectView(msg = "") {
+  const m = await store();
+  app.innerHTML = `<div class="login"><form class="card" id="cf" novalidate>
+    <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="var(--soft)"/><path d="M20 46l8-22 14 14z" fill="var(--accent)"/></svg>
+    <h1>اتصال این دستگاه</h1><p>بار اول، کلید گیت‌هاب را وارد کنید. بعد از آن فقط نام کاربری و رمز لازم است.</p>
+    <label class="field"><span>کلید گیت‌هاب (Token)</span><input name="t" type="password" dir="ltr" autocomplete="off" spellcheck="false" placeholder="github_pat_…" required></label>
+    <div class="err" role="alert">${esc(msg)}</div><button class="btn primary" style="width:100%">${ic("key")}اتصال</button>
+    <p style="margin:14px 0 0;font-size:13px">کلید را ادمینی که قبلاً وصل است با «لینک اتصال دستگاه جدید» برایتان می‌فرستد.</p></form></div>`;
+  $("#cf").onsubmit = async e => {
+    e.preventDefault(); const t = e.target.t.value.trim(), err = await m.testToken(t);
+    if (err) return $(".err", e.target).textContent = err;
+    m.gh.setToken(t); boot();
   };
 }
 
@@ -367,6 +392,8 @@ async function adminsView() {
     <p class="muted" style="margin:0 0 10px;font-size:13.5px">همهٔ ادمین‌ها همهٔ جشن‌ها را می‌بینند و ویرایش می‌کنند.</p>
     <div class="list">${list.map(u => `<div class="row" style="grid-template-columns:1fr auto"><div class="t"><span>${esc(u.name)}</span><small dir="ltr" style="text-align:end">${esc(u.username)}</small></div>
       ${u.id === S.me.id ? `<span class="pill">شما</span>` : `<button class="btn sm ghost danger" type="button" data-rm="${u.id}">حذف</button>`}</div>`).join("")}</div>
+    ${GH ? `<h4 style="margin:16px 0 8px;display:flex;align-items:center;gap:6px">${ic("phone")}دستگاه‌های وارد شده</h4><div class="list" id="devs"><p class="muted">…</p></div>
+    <div class="dlg-foot" style="margin-top:10px"><button class="btn sm" type="button" id="pair">${ic("share")}لینک اتصال دستگاه جدید</button><button class="btn sm" type="button" id="push">${ic("sparkle")}اعلان‌ها روی این دستگاه</button></div>` : ""}
     <h4 style="margin:16px 0 8px">ادمین جدید</h4>
     <div class="grid2"><label class="field"><span>نام</span><input name="name" type="text"></label><label class="field"><span>نام کاربری (انگلیسی)</span><input name="username" type="text" dir="ltr" autocapitalize="none"></label></div>
     <label class="field"><span>رمز (حداقل ۶ حرف)</span><input name="password" type="text" dir="ltr" autocomplete="off"></label>
@@ -374,10 +401,36 @@ async function adminsView() {
     await api("/api/admins", { name: f.elements.name.value, username: latin(f.username.value), password: latin(f.password.value) }); toast("ادمین اضافه شد"); setTimeout(adminsView, 50);
   });
   $$("[data-rm]").forEach(b => b.onclick = async () => { if (!confirm("این ادمین حذف شود؟")) return; try { await api(`/api/admins/${b.dataset.rm}/delete`, {}); toast("حذف شد"); b.closest("dialog").close(); adminsView(); } catch (e) { toast(e.message, true); } });
+  if (GH) devicesPart();
   $("#th").onclick = e => { const t = theme.get() === "dark" ? "light" : "dark"; theme.set(t); e.currentTarget.innerHTML = t === "dark" ? ic("sun") + "حالت روشن" : ic("moon") + "حالت تیره"; };
   $("#out").onclick = async () => { try { await api("/api/logout", {}); } catch {} token.set(""); location.hash = ""; location.reload(); };
   $("#pw").onclick = () => { $("#pw").closest("dialog").close(); dialog(`<div class="dlg-head"><h3>تغییر رمز</h3></div><label class="field"><span>رمز فعلی</span><input name="old" type="password" dir="ltr"></label><label class="field"><span>رمز جدید</span><input name="nw" type="password" dir="ltr"></label>` + foot(),
     async f => { await api("/api/password", { old: latin(f.old.value), new: latin(f.nw.value) }); toast("رمز عوض شد"); }); };
+}
+
+async function devicesPart() {
+  const box = $("#devs"); if (!box) return;
+  const list = await api("/api/devices"), ago = iso => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 2 ? "همین حالا" : m < 60 ? fa(m) + " دقیقه پیش" : m < 1440 ? fa(Math.round(m / 60)) + " ساعت پیش" : fa(Math.round(m / 1440)) + " روز پیش"; };
+  box.innerHTML = list.map(d => `<div class="row" style="grid-template-columns:1fr auto${d.revoked ? ";opacity:.5" : ""}"><div class="t"><span>${esc(d.name)} · ${esc(d.label || "")}</span><small>${d.revoked ? "حذف شده" : "آخرین بار " + ago(d.last)}${d.push ? " · اعلان روشن" : ""}</small></div>
+    ${d.me ? `<span class="pill">این دستگاه</span>` : d.revoked ? "" : `<button class="btn sm ghost danger" type="button" data-dev="${esc(d.id)}">${ic("trash")}حذف</button>`}</div>`).join("") || `<p class="muted">—</p>`;
+  $$("[data-dev]", box).forEach(b => b.onclick = async () => { if (!confirm("این دستگاه خارج شود؟")) return; await api("/api/devices/remove", { id: b.dataset.dev }); toast("دستگاه حذف شد"); devicesPart(); });
+  $("#pair").onclick = async () => {
+    const m = await store(), link = location.origin + location.pathname + "#connect=" + encodeURIComponent(m.gh.token());
+    if (!confirm("این لینک کلید نوشتن در گیت‌هاب را دارد. فقط برای اعضای خانواده بفرستید. ادامه؟")) return;
+    try { if (navigator.share) await navigator.share({ text: "لینک اتصال به اپ جشن:\n" + link }); else { await navigator.clipboard.writeText(link); toast("لینک کپی شد"); } } catch {}
+  };
+  $("#push").onclick = enablePush;
+}
+// native push: subscribe this device; GitHub Actions sends a notification after each change by another admin
+async function enablePush() {
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return toast(/iPhone|iPad/.test(navigator.userAgent) ? "روی آیفون: اول اپ را با «Add to Home Screen» نصب کنید و از همان آیکون باز کنید" : "این مرورگر اعلان ندارد", true);
+    if ((await Notification.requestPermission()) !== "granted") return toast("اجازهٔ اعلان داده نشد", true);
+    const reg = await navigator.serviceWorker.ready, key = (await store()).CFG.vapid;
+    const raw = Uint8Array.from(atob(key.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - key.length % 4) % 4)), c => c.charCodeAt(0));
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: raw });
+    await api("/api/push", { sub: sub.toJSON() }); toast("اعلان‌ها روی این دستگاه روشن شد"); devicesPart();
+  } catch (e) { toast("روشن کردن اعلان نشد: " + e.message, true); }
 }
 
 // ---------- live: other admins' edits show up ----------
@@ -389,6 +442,11 @@ setInterval(async () => {
 // ---------- boot ----------
 theme.set(theme.get());
 async function boot() {
+  if (GH) {
+    const m = await store(), c = location.hash.match(/^#connect=(.+)$/);
+    if (c) { m.gh.setToken(decodeURIComponent(c[1])); history.replaceState(null, "", location.pathname); }
+    if (!m.gh.token()) return connectView();
+  }
   if (!token.get()) return loginView();
   try {
     S.me = (await api("/api/me")).user;
