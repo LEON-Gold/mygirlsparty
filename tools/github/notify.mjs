@@ -12,7 +12,8 @@ const seen = new Set((before.log || []).map(l => l.at + l.device));
 const fresh = (now.log || []).filter(l => !seen.has(l.at + l.device));
 if (!fresh.length) { console.log("nothing new"); process.exit(0); }
 
-webpush.setVapidDetails("mailto:party@example.invalid", process.env.VAPID_PUBLIC, process.env.VAPID_PRIVATE);
+webpush.setVapidDetails("https://leon-gold.github.io/mygirlsparty/", // Apple wants a real URL or mailto here
+   process.env.VAPID_PUBLIC, process.env.VAPID_PRIVATE);
 const by = fresh[fresh.length - 1].by, from = new Set(fresh.map(l => l.device));
 const body = fresh.length === 1 ? fresh[0].text : `${fresh.slice(-3).map(l => l.text).join("، ")}${fresh.length > 3 ? ` و ${fresh.length - 3} تغییر دیگر` : ""}`;
 const payload = JSON.stringify({ title: by ? `${by} در اپ جشن` : "اپ جشن", body, tag: "party-" + Date.now() });
