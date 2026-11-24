@@ -1,0 +1,25 @@
+# Push notification to the other admins after each change (goes on the `data` branch as .github/workflows/notify.yml).
+name: notify admins
+on:
+  push:
+    branches: [data]
+    paths: ["data/party.json"]
+concurrency:
+  group: notify
+  cancel-in-progress: false
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm i --no-save --no-audit --no-fund web-push@3.6.7
+      - run: node .github/notify.mjs
+        env:
+          VAPID_PUBLIC: ${{ secrets.VAPID_PUBLIC }}
+          VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
