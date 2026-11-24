@@ -222,3 +222,78 @@ dialog form { padding: 18px; }
 .confetti i { position: absolute; width: 7px; height: 7px; border-radius: 2px; left: -3px; top: -3px; animation: burst .75s var(--ease) forwards; }
 @keyframes burst { 0% { transform: translate(0, 0) rotate(0) scale(.6); opacity: 1; } 70% { opacity: 1; } 100% { transform: translate(var(--x), calc(var(--y) + 24px)) rotate(var(--r)) scale(1); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .confetti { display: none; } }
+
+/* ================= design pass 2 (owner, 2026-11-25): two-tone palettes + richer motion ================= */
+:root { --accent2: #ff8a5c; }
+/* gradients from the party's two colours (a cover photo, set inline, still wins) */
+.hero { background: linear-gradient(135deg, var(--accent) 0%, var(--c2, var(--accent2)) 130%) center/cover; isolation: isolate; }
+.hero::before { background: linear-gradient(160deg, transparent 20%, rgba(20, 5, 20, .45)); }
+.party .band { background: linear-gradient(135deg, var(--c, var(--accent)), var(--c2, var(--accent2))) center/cover; }
+.btn.primary, .fab { background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, var(--accent2))); border-color: transparent; }
+.chip[aria-pressed="true"] { background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 65%, var(--accent2))); border-color: transparent; }
+.bar i { background: linear-gradient(90deg, var(--accent2), var(--accent)); position: relative; overflow: hidden; }
+.bar i::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55), transparent); transform: translateX(-100%); animation: sheen 1.6s var(--ease) .9s 2; }
+@keyframes sheen { to { transform: translateX(100%); } }
+.panel h3 .ic, .ic.big { color: var(--accent); }
+
+/* hero decorations: two drifting light blobs, three balloons, three sparkles */
+.hero .deco { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.hero .blob { position: absolute; border-radius: 50%; filter: blur(2px); opacity: .45; }
+.hero .blob.a { width: 220px; height: 220px; background: radial-gradient(circle, rgba(255,255,255,.55), transparent 65%); top: -90px; inset-inline-start: -60px; animation: drift 14s ease-in-out infinite alternate; }
+.hero .blob.b { width: 260px; height: 260px; background: radial-gradient(circle, color-mix(in srgb, var(--c2, var(--accent2)) 70%, white), transparent 65%); bottom: -140px; inset-inline-end: -80px; animation: drift 18s ease-in-out -6s infinite alternate-reverse; }
+@keyframes drift { from { transform: translate(0, 0) scale(1); } to { transform: translate(40px, 24px) scale(1.15); } }
+.hero .bal { position: absolute; bottom: -70px; width: 26px; height: 32px; border-radius: 50% 50% 48% 48%; opacity: .85; animation: rise-bal 11s linear infinite; }
+.hero .bal::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 26px; background: rgba(255,255,255,.5); }
+.hero .b1 { inset-inline-start: 14%; background: rgba(255,255,255,.75); animation-delay: -2s; }
+.hero .b2 { inset-inline-start: 46%; width: 20px; height: 25px; background: #ffd166; animation-duration: 14s; animation-delay: -8s; }
+.hero .b3 { inset-inline-start: 78%; background: color-mix(in srgb, var(--c2, var(--accent2)) 60%, white); animation-duration: 12.5s; animation-delay: -5s; }
+@keyframes rise-bal { 0% { transform: translate(0, 0) rotate(-4deg); } 50% { transform: translate(10px, -150px) rotate(5deg); } 100% { transform: translate(-6px, -320px) rotate(-3deg); } }
+.hero .spark { position: absolute; width: 8px; height: 8px; background: #fff; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); animation: twinkle 2.8s ease-in-out infinite; }
+.hero .s1 { top: 18%; inset-inline-start: 58%; } .hero .s2 { top: 62%; inset-inline-start: 30%; animation-delay: -1s; width: 6px; height: 6px; } .hero .s3 { top: 30%; inset-inline-start: 8%; animation-delay: -2s; }
+@keyframes twinkle { 0%, 100% { opacity: 0; transform: scale(.4) rotate(0); } 50% { opacity: 1; transform: scale(1) rotate(45deg); } }
+.hero .big { text-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+
+/* bottom tabs: one pill slides to the active tab */
+.tabs { overflow: hidden; }
+.tab-pill { position: absolute; top: 6px; right: 0; width: 20%; height: 46px; border-radius: 14px; background: var(--soft); opacity: 0; transition: transform .38s var(--spring); z-index: 0; }
+.tab-pill.on { opacity: 1; }
+.tabs button { z-index: 1; }
+.tabs button[aria-current="page"]::before { display: none; }
+
+/* direction-aware screen entry (forward slides from the left in RTL, back from the right) */
+#main[data-dir="fwd"].enter > :not(.fab) { animation-name: in-fwd; }
+#main[data-dir="back"].enter > :not(.fab) { animation-name: in-back; }
+@keyframes in-fwd { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+@keyframes in-back { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+.enter > :nth-child(2) { animation-delay: 40ms; } .enter > :nth-child(3) { animation-delay: 80ms; } .enter > :nth-child(4) { animation-delay: 120ms; } .enter > :nth-child(n+5) { animation-delay: 150ms; }
+.list > .row { animation: rise .32s var(--ease) both; }
+.list > .row:nth-child(-n+12) { animation-delay: calc(var(--n, 0) * 1ms); }
+
+/* touch ripple */
+.ripple { position: absolute; border-radius: 50%; background: currentColor; opacity: .14; transform: scale(0); pointer-events: none; animation: ripple .55s var(--ease) forwards; }
+@keyframes ripple { to { transform: scale(1); opacity: 0; } }
+
+/* palette picker */
+.palettes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.palettes label { position: relative; display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: 14px; border: 2px solid transparent; cursor: pointer; font-size: 12px; font-weight: 600; transition: border-color .15s, transform .2s var(--spring); }
+.palettes label:has(input:checked) { border-color: var(--c); background: color-mix(in srgb, var(--c) 8%, transparent); transform: scale(1.03); }
+.palettes label:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
+.palettes input { position: absolute; opacity: 0; pointer-events: none; }
+.palettes i { width: 44px; height: 44px; border-radius: 50%; background: conic-gradient(from 200deg, var(--c), var(--c2), var(--c)); box-shadow: inset 0 0 0 3px rgba(255,255,255,.6); }
+
+/* confetti rain */
+.rain { position: fixed; inset: 0; z-index: 120; pointer-events: none; overflow: hidden; }
+.rain i { position: absolute; top: -20px; width: 9px; height: 13px; border-radius: 2px; animation: fall linear forwards; }
+@keyframes fall { 0% { transform: translate(0, 0) rotate(0); opacity: 1; } 85% { opacity: 1; } 100% { transform: translate(var(--dx), 105vh) rotate(var(--r)); opacity: 0; } }
+
+/* login: balloons drifting behind the card */
+.login { position: relative; overflow: hidden; background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 22%, var(--bg)), var(--bg) 55%, color-mix(in srgb, var(--accent2) 22%, var(--bg))); }
+.login::before, .login::after { content: ""; position: absolute; width: 90px; height: 110px; border-radius: 50% 50% 46% 46%; opacity: .5; animation: rise-bal 16s linear infinite; bottom: -140px; }
+.login::before { inset-inline-start: 12%; background: var(--accent); }
+.login::after { inset-inline-start: 72%; width: 70px; height: 86px; background: var(--accent2); animation-delay: -7s; animation-duration: 19s; }
+.login .card { position: relative; z-index: 1; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); background: color-mix(in srgb, var(--surface) 88%, transparent); }
+
+/* paused when the app is in the background, and nothing loops with reduced motion */
+.paused .hero .deco *, .paused .login::before, .paused .login::after { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .hero .deco, .login::before, .login::after, .ripple, .rain { display: none; } .tab-pill { transition: none; } }
+.cover-pick .prev { background: linear-gradient(135deg, var(--accent), var(--accent2)) center/cover; }

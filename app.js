@@ -41,6 +41,13 @@ function confetti(el) {
     d.style.cssText = `--x:${Math.cos(a) * dist}px;--y:${Math.sin(a) * dist - 12}px;--r:${Math.random() * 360}deg;background:${colors[i % colors.length]};animation-delay:${Math.random() * 60}ms`; box.append(d); }
   document.body.append(box); setTimeout(() => box.remove(), 900);
 }
+// full-screen confetti rain for big moments (all to-dos done)
+function party() {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const box = document.createElement("div"); box.className = "rain"; const colors = ["var(--accent)", "var(--accent2)", "#ffd166", "#5cc7a0", "#7aa7ff"];
+  for (let i = 0; i < 46; i++) { const d = document.createElement("i"); d.style.cssText = `left:${Math.random() * 100}%;background:${colors[i % 5]};--dx:${(Math.random() - .5) * 120}px;--r:${Math.random() * 720 - 360}deg;animation-duration:${1.6 + Math.random() * 1.2}s;animation-delay:${Math.random() * .5}s;${i % 3 ? "" : "border-radius:50%;"}`; box.append(d); }
+  document.body.append(box); setTimeout(() => box.remove(), 3600);
+}
 const theme = { get: () => { try { return localStorage.getItem("party.theme") || "light"; } catch { return "light"; } },
   set: t => { try { localStorage.setItem("party.theme", t); } catch {} document.documentElement.dataset.theme = t; $("meta[name=theme-color]")?.setAttribute("content", t === "dark" ? "#1d1424" : "#fff7f3"); } };
 const FOOD_CATS = ["خوراکی", "کیک", "پذیرایی", "نوشیدنی", "میوه", "شیرینی", "غذا"];
@@ -101,7 +108,13 @@ const S = { me: null, events: [], ev: null, data: null, tab: "sum", gFilter: "al
 const app = $("#app");
 const STATUS = { yes: "می‌آید", maybe: "شاید", no: "نمی‌آید", invited: "دعوت شد", none: "هنوز نه" };
 const STATUS_BTNS = ["invited", "yes", "maybe", "no"];
-const COLORS = ["#c2416b", "#e0794a", "#d4a017", "#3f9a6b", "#2f7fb8", "#6a4fc7", "#a3478f", "#3c3c46"];
+const PALETTES = [
+  { c: "#c2416b", c2: "#ff8a5c", name: "توت‌فرنگی" }, { c: "#7c4dff", c2: "#ff6fb5", name: "یاس" }, { c: "#e0503d", c2: "#ffb547", name: "مرجان" },
+  { c: "#0e8f8f", c2: "#5b7cfa", name: "دریا" }, { c: "#b07a12", c2: "#e86a92", name: "شامپاین" }, { c: "#2f6fe0", c2: "#28c2b0", name: "آسمان" },
+  { c: "#d03a8c", c2: "#7a5cff", name: "آبنبات" }, { c: "#3f4fd6", c2: "#f0a020", name: "شب پرستاره" }, { c: "#2c8a57", c2: "#c9b02c", name: "نعناع" },
+];
+const COLORS = PALETTES.map(x => x.c);
+const partner = c => (PALETTES.find(x => x.c === c) || { c2: "#ff8a5c" }).c2;
 const ICON = {
   sum: '<path d="M3 12l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
   guests: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5"/><circle cx="17.5" cy="9.5" r="2.4"/><path d="M16 14.6c2.6.2 4.3 2 4.9 4.9"/>',
@@ -110,7 +123,7 @@ const ICON = {
   party: '<path d="M4 20l5-14 9 9z"/><path d="M14 4l1 2M19 6l-2 1M20 11l-2-.5M11 3.5l.5 2"/>',
 };
 const TABS = [["sum", "خلاصه"], ["guests", "مهمان‌ها"], ["tasks", "کارها"], ["shop", "خرید"], ["party", "جشن"]];
-const setAccent = c => document.documentElement.style.setProperty("--accent", c || "#c2416b");
+const setAccent = c => { const r = document.documentElement.style; r.setProperty("--accent", c || "#c2416b"); r.setProperty("--accent2", partner(c || "#c2416b")); };
 
 // ---------- login ----------
 function loginView(msg = "") {
@@ -151,7 +164,7 @@ async function listView() {
   S.events = await api("/api/events");
   const m = $("#main");
   m.innerHTML = `<div class="parties stagger">${S.events.map((e, i) => { const d = daysTo(e.date);
-      return `<button class="party" type="button" data-e="${e.id}" style="--i:${i};--c:${esc(e.color)}"><div class="band" style="${e.cover ? `background-image:url('${esc(e.cover)}')` : ""}">
+      return `<button class="party" type="button" data-e="${e.id}" style="--i:${i};--c:${esc(e.color)};--c2:${partner(e.color)}"><div class="band" style="${e.cover ? `background-image:url('${esc(e.cover)}')` : ""}">
         <span class="days">${d == null ? "تاریخ ندارد" : d > 0 ? fa(d) + " روز مانده" : d === 0 ? "امروز!" : "برگزار شد"}</span></div>
         <div class="b"><h2>${esc(e.title)}</h2><div class="meta">${e.date ? `<span>${ic("cal")}${faDate(e.date)}</span>` : ""}<span>${ic("users")}${fa(e.coming)} نفر می‌آیند</span><span>${ic("list")}${fa(e.tasksLeft)} کار مانده</span></div></div></button>`; }).join("")}</div>
     ${S.events.length ? "" : `<div class="empty">${ic("party", "big")}<p>هنوز جشنی نساخته‌اید.<br>با «جشن جدید» شروع کنید.</p></div>`}
@@ -160,26 +173,45 @@ async function listView() {
   $("#new").onclick = () => editEvent({ title: "", color: COLORS[0] });
 }
 
+function movePill() {
+  // five equal tabs, first on the right (RTL): move one tab-width per step, no layout reads
+  const pill = $(".tab-pill"), i = TABS.findIndex(t => t[0] === S.tab); if (!pill || i < 0) return;
+  pill.style.transform = `translateX(${-i * 100}%)`; pill.classList.add("on");
+}
+// pause the looping decorations when the app isn't on screen (battery)
+document.addEventListener("visibilitychange", () => document.documentElement.classList.toggle("paused", document.visibilityState !== "visible"));
+// soft ripple where a finger touches a button (transform + opacity only)
+document.addEventListener("pointerdown", e => {
+  const b = e.target.closest(".btn, .tile, .chip, .fab, .party, .tabs button"); if (!b || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height) * 2, w = document.createElement("span");
+  w.className = "ripple"; w.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
+  if (getComputedStyle(b).position === "static") b.style.position = "relative";
+  b.style.overflow = "hidden"; b.append(w); setTimeout(() => w.remove(), 600);
+}, { passive: true });
+
 // ---------- one party ----------
 async function openEvent(id, tab) {
   S.data = await api(`/api/events/${id}`); S.ev = S.data.event; S.stamp = S.ev.updated; setAccent(S.ev.color);
   app.innerHTML = `<header class="top"><button class="btn icon ghost" type="button" id="back" aria-label="همهٔ جشن‌ها">${ic("back")}</button><h1>${esc(S.ev.title)}</h1></header>
     <main id="main"></main>
-    <nav class="tabs" aria-label="بخش‌ها">${TABS.map(([k, t]) => `<button type="button" data-tab="${k}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>${t}</button>`).join("")}</nav>`;
+    <nav class="tabs" aria-label="بخش‌ها"><span class="tab-pill" aria-hidden="true"></span>${TABS.map(([k, t]) => `<button type="button" data-tab="${k}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>${t}</button>`).join("")}</nav>`;
   $("#back").onclick = listView;
   $$(".tabs button").forEach(b => b.onclick = () => go(b.dataset.tab));
   go(tab || location.hash.split("/")[1] || "sum");
 }
 function go(tab) {
   if (!VIEWS[tab]) tab = "sum";
+  const from = TABS.findIndex(t => t[0] === S.tab), to = TABS.findIndex(t => t[0] === tab);
+  S.dir = from < 0 || from === to ? "" : to > from ? "fwd" : "back";
   S.tab = tab; history.replaceState(null, "", `#${S.ev.id}/${tab}`);
+  requestAnimationFrame(movePill);
   $$(".tabs button").forEach(b => b.dataset.tab === tab ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
   render(true);
 }
 function render(fresh) {
   const m = $("#main"); if (!m || !S.data) return;
   VIEWS[S.tab](m);
-  if (fresh) { replay(m); countUp(m); window.scrollTo(0, 0); }
+  if (fresh) { m.dataset.dir = S.dir || ""; replay(m); countUp(m); window.scrollTo(0, 0); }
 }
 async function reload() { S.data = await api(`/api/events/${S.ev.id}`); S.ev = S.data.event; S.stamp = S.ev.updated; render(false); }
 const people = g => (g.adults || 0) + (g.kids || 0);
@@ -192,8 +224,9 @@ VIEWS.sum = m => {
   const est = items.reduce((a, i) => a + i.est, 0), spent = items.reduce((a, i) => a + (i.actual || (i.bought ? i.est : 0)), 0);
   const doneN = tasks.filter(t => t.done).length, next = tasks.filter(t => !t.done).slice(0, 3);
   const pct = (a, b) => b ? Math.min(100, Math.round(a / b * 100)) : 0;
-  m.innerHTML = `<section class="hero" style="${e.cover ? `background-image:url('${esc(e.cover)}')` : ""}">
+  m.innerHTML = `<section class="hero" style="--c2:${partner(e.color)};${e.cover ? `background-image:url('${esc(e.cover)}')` : ""}">
       ${d == null ? `<div class="big" style="font-size:26px">تاریخ جشن را در «جشن» بزنید</div>` : d > 0 ? `<div><span class="big">${cnt(d)}</span> <span class="unit">روز تا جشن</span></div>` : d === 0 ? `<div class="big">امروز!</div>` : `<div class="big" style="font-size:30px">برگزار شد</div>`}
+      <div class="deco" aria-hidden="true"><i class="blob a"></i><i class="blob b"></i><i class="bal b1"></i><i class="bal b2"></i><i class="bal b3"></i><i class="spark s1"></i><i class="spark s2"></i><i class="spark s3"></i></div>
       <div class="when">${e.date ? `<span>${ic("cal")}<b>${faDate(e.date)}</b></span>` : ""}${e.time ? `<span>${ic("clock")}ساعت ${esc(faDigits(e.time))}</span>` : ""}${e.place ? `<span>${ic("pin")}${esc(e.place)}</span>` : ""}</div></section>
     <div class="tiles">
       <button class="tile yes" type="button" data-go="yes">${ic("yes")}<b>${cnt(head("yes"))}</b><span>نفر می‌آیند</span></button>
@@ -266,7 +299,7 @@ VIEWS.tasks = m => {
   $$("[data-f]", m).forEach(b => b.onclick = () => { S.tFilter = b.dataset.f; VIEWS.tasks(m); });
   $$("[data-done]", m).forEach(b => b.onclick = async () => {
     const t = T.find(x => x.id === +b.dataset.done); t.done = t.done ? 0 : 1; b.setAttribute("aria-checked", !!t.done); b.closest(".row").classList.toggle("done", !!t.done);
-    try { await api(`/api/events/${S.ev.id}/tasks`, { ...t, due: t.due ? jalaliText(t.due) : "" }); if (t.done) { confetti(b); toast("آفرین! انجام شد"); } setTimeout(reload, 450); } catch (e) { toast(e.message, true); reload(); }
+    try { await api(`/api/events/${S.ev.id}/tasks`, { ...t, due: t.due ? jalaliText(t.due) : "" }); if (t.done) { confetti(b); if (T.every(x => x.done)) { party(); toast("همهٔ کارها انجام شد! 🎉"); } else toast("آفرین! انجام شد"); } setTimeout(reload, 450); } catch (e) { toast(e.message, true); reload(); }
   });
   $$("[data-edit]", m).forEach(el => el.onclick = () => editTask(T.find(t => t.id === +el.dataset.edit)));
   $("#add").onclick = () => editTask({ title: "", due: "", who: "", done: 0, note: "" });
@@ -375,7 +408,7 @@ function editEvent(e) {
       <div class="grid2"><label class="field"><span>سهم هر کودک</span><select name="kidShare">${[[1, "کامل"], [0.5, "نصف"], [0.33, "یک‌سوم"]].map(([v, t]) => `<option value="${v}" ${(e.kidShare ?? 1) == v ? "selected" : ""}>${t}</option>`).join("")}</select></label>
         <label class="field"><span>نفرات خانهٔ خودمان</span><input name="hosts" type="text" inputmode="numeric" value="${e.hosts ? fa(e.hosts) : ""}" placeholder="۰"></label></div>
       <label style="display:flex;gap:8px;align-items:center"><input name="shareMaybe" type="checkbox" ${e.shareMaybe ?? 1 ? "checked" : ""} style="width:20px;height:20px;accent-color:var(--accent)"> «شاید»ها هم حساب شوند</label></fieldset>
-    <div class="field"><span>رنگ جشن</span><div class="swatches">${COLORS.map(c => `<label style="--c:${c}" aria-label="رنگ ${c}"><input type="radio" name="color" value="${c}" ${c === (e.color || COLORS[0]) ? "checked" : ""}><span></span></label>`).join("")}</div></div>`
+    <div class="field"><span>تم رنگ جشن</span><div class="palettes">${PALETTES.map(x => `<label style="--c:${x.c};--c2:${x.c2}"><input type="radio" name="color" value="${x.c}" ${x.c === (e.color || COLORS[0]) ? "checked" : ""}><i></i><span>${x.name}</span></label>`).join("")}</div></div>`
     + foot(), async f => {
     const r = await api("/api/events", { id: e.id, title: f.elements.title.value, date: latin(f.date.value), time: latin(f.time.value), place: f.place.value, address: f.address.value, map: f.map.value.trim(), budget: num(f.budget.value), invite: f.invite.value, color: f.color.value, cover, kidShare: +f.kidShare.value, hosts: num(f.hosts.value), shareMaybe: f.shareMaybe.checked });
     toast("ذخیره شد"); if (e.id) { await reload(); setAccent(S.ev.color); $(".top h1").textContent = S.ev.title; } else openEvent(r.id);
