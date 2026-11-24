@@ -58,7 +58,7 @@ const token = { get: () => { try { return localStorage.getItem(KEY) || ""; } cat
 // On GitHub Pages there is no server: the data lives in the repo (store.js). Locally the Node server answers.
 const GH = location.hostname.endsWith("github.io") || /[?&]gh\b/.test(location.search);
 let storeMod = null;
-const store = () => storeMod || (storeMod = import("./store.js?v=1"));
+const store = () => storeMod || (storeMod = import("./store.js?v=2"));
 async function api(path, body) {
   if (GH) {
     const m = await store();
@@ -222,12 +222,17 @@ VIEWS.sum = m => {
   const by = s => guests.filter(g => g.status === s);
   const head = s => by(s).reduce((a, g) => a + people(g), 0);
   const est = items.reduce((a, i) => a + i.est, 0), spent = items.reduce((a, i) => a + (i.actual || (i.bought ? i.est : 0)), 0);
-  const doneN = tasks.filter(t => t.done).length, next = tasks.filter(t => !t.done).slice(0, 3);
+  const doneN = tasks.filter(t => t.done).length, next = tasks.filter(t => !t.done).slice(0, 5);
+  const come = guests.filter(g => g.status === "yes" || g.status === "maybe"), adults = come.reduce((a, g) => a + (g.adults || 0), 0), kids = come.reduce((a, g) => a + (g.kids || 0), 0);
+  const bought = items.filter(i => i.bought).length, toBuy = items.filter(i => !i.bought).reduce((a, i) => a + i.est, 0), late = tasks.filter(t => !t.done && t.due && daysTo(t.due) < 0).length;
   const pct = (a, b) => b ? Math.min(100, Math.round(a / b * 100)) : 0;
   m.innerHTML = `<section class="hero" style="--c2:${partner(e.color)};${e.cover ? `background-image:url('${esc(e.cover)}')` : ""}">
       ${d == null ? `<div class="big" style="font-size:26px">تاریخ جشن را در «جشن» بزنید</div>` : d > 0 ? `<div><span class="big">${cnt(d)}</span> <span class="unit">روز تا جشن</span></div>` : d === 0 ? `<div class="big">امروز!</div>` : `<div class="big" style="font-size:30px">برگزار شد</div>`}
       <div class="deco" aria-hidden="true"><i class="blob a"></i><i class="blob b"></i><i class="bal b1"></i><i class="bal b2"></i><i class="bal b3"></i><i class="spark s1"></i><i class="spark s2"></i><i class="spark s3"></i></div>
       <div class="when">${e.date ? `<span>${ic("cal")}<b>${faDate(e.date)}</b></span>` : ""}${e.time ? `<span>${ic("clock")}ساعت ${esc(faDigits(e.time))}</span>` : ""}${e.place ? `<span>${ic("pin")}${esc(e.place)}</span>` : ""}</div></section>
+    <div class="strip">
+      <span>${ic("users")}<b>${fa(guests.length)}</b> خانواده دعوت</span><span><b>${fa(guests.reduce((a, g) => a + people(g), 0))}</b> نفر در فهرست</span>
+      <span>می‌آیند/شاید: <b>${fa(adults)}</b> بزرگسال · <b>${fa(kids)}</b> کودک</span>${late ? `<span class="warn">${ic("clock")}<b>${fa(late)}</b> کار عقب افتاده</span>` : ""}</div>
     <div class="tiles">
       <button class="tile yes" type="button" data-go="yes">${ic("yes")}<b>${cnt(head("yes"))}</b><span>نفر می‌آیند</span></button>
       <button class="tile maybe" type="button" data-go="maybe">${ic("maybe")}<b>${cnt(head("maybe"))}</b><span>نفر شاید</span></button>
@@ -236,13 +241,20 @@ VIEWS.sum = m => {
     <section class="card panel"><h3><span>${ic("wallet")}بودجه</span> <small>${e.budget ? toman(e.budget) : "بودجه را در «جشن» بزنید"}</small></h3>
       ${e.budget ? `<div class="bar${spent > e.budget ? " over" : ""}"><i style="width:${pct(spent, e.budget)}%"></i></div>` : ""}
       <div class="kv"><span>خرج شده</span><b>${cnt(spent)} تومان</b></div><div class="kv"><span>کل برآورد خرید</span><b>${cnt(est)} تومان</b></div>
+      <div class="kv"><span>خریده شده</span><b>${fa(bought)} از ${fa(items.length)} قلم</b></div>${toBuy ? `<div class="kv"><span>مانده برای خرید (برآورد)</span><b>${cnt(toBuy)} تومان</b></div>` : ""}
       ${e.budget ? `<div class="kv"><span>${e.budget - est >= 0 ? "باقی‌مانده از بودجه (با برآورد)" : "بیشتر از بودجه (با برآورد)"}</span><b style="color:${e.budget - est >= 0 ? "var(--ok)" : "var(--bad)"}">${cnt(Math.abs(e.budget - est))} تومان</b></div>` : ""}</section>
     <section class="card panel"><h3><span>${ic("list")}کارها</span> <small>${fa(doneN)} از ${fa(tasks.length)} انجام شد</small></h3>
       <div class="bar"><i style="width:${pct(doneN, tasks.length)}%"></i></div>
-      ${next.length ? `<div style="margin-top:10px">${next.map(t => `<div class="kv"><span>${esc(t.title)}</span>${dueTag(t)}</div>`).join("")}</div>` : `<p class="muted" style="margin:8px 0 0">کار باقی نمانده.</p>`}</section>`;
+      ${next.length ? `<div style="margin-top:8px">${next.map(t => `<div class="kv"><span>${esc(t.title)}${t.who ? ` <span class="muted">· ${esc(t.who)}</span>` : ""}</span>${dueTag(t)}</div>`).join("")}</div>` : `<p class="muted" style="margin:8px 0 0">کار باقی نمانده.</p>`}</section>`;
   $$("[data-go]", m).forEach(b => b.onclick = () => { S.gFilter = b.dataset.go; go("guests"); });
+  // recent changes by all admins (GitHub version keeps a log)
+  if (GH) api("/api/log").then(L => { if (!L.length || S.tab !== "sum") return; const sec = document.createElement("section"); sec.className = "card panel";
+    sec.innerHTML = `<h3><span>${ic("sparkle")}آخرین تغییرات</span></h3>${L.map(l => `<div class="kv log"><span><b>${esc(l.by || "—")}</b> ${esc(l.text)}</span><span class="muted">${ago(l.at)}</span></div>`).join("")}`; m.append(sec); }).catch(() => {});
 };
-const dueTag = t => { if (!t.due) return `<span class="due muted">بدون موعد</span>`; const d = daysTo(t.due); return `<span class="due${!t.done && d < 0 ? " late" : ""}">${!t.done && d < 0 ? "گذشته · " : ""}${faDate(t.due, false)}</span>`; };
+const ago = iso => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 2 ? "همین حالا" : m < 60 ? fa(m) + " دقیقه پیش" : m < 1440 ? fa(Math.round(m / 60)) + " ساعت پیش" : fa(Math.round(m / 1440)) + " روز پیش"; };
+const dueTag = t => { if (!t.due) return `<span class="due muted">بدون موعد</span>`; const d = daysTo(t.due);
+  const rel = t.done ? "" : d < 0 ? `${fa(-d)} روز گذشته` : d === 0 ? "امروز" : d === 1 ? "فردا" : `${fa(d)} روز دیگر`;
+  return `<span class="due${!t.done && d < 0 ? " late" : !t.done && d <= 2 ? " soon" : ""}">${faDate(t.due, false)}${rel ? `<small>${rel}</small>` : ""}</span>`; };
 
 // ---------- guests ----------
 VIEWS.guests = m => {
@@ -255,16 +267,15 @@ VIEWS.guests = m => {
   const shareLine = g => { const parts = SH.items.filter(i => i.shares[g.id] > 0).map(i => `${i.title} ${amt(i.shares[g.id], i.unit)}`); return parts.length ? `<div class="share">سهم: ${parts.map(esc).join(" · ")}</div>` : ""; };
   m.innerHTML = `<div class="tools"><input type="search" id="gq" placeholder="جستجوی نام یا تلفن" value="${esc(S.gq)}" aria-label="جستجو"></div>
     <div class="chips" role="group" aria-label="فیلتر">${Object.entries(F).map(([k, [t, f]]) => `<button class="chip" type="button" data-f="${esc(k)}" aria-pressed="${k === S.gFilter}">${esc(t)}<small>${fa(G.filter(f).length)}</small></button>`).join("")}</div>
-    <p class="muted" style="margin:0 2px 8px;font-size:13px">${fa(list.length)} خانواده · ${fa(total)} نفر</p>
-    <div class="list">${list.map(g => `<div class="row" data-id="${g.id}"><div class="t" data-edit="${g.id}" role="button" tabindex="0"><span>${esc(g.name)}</span><small>${[g.grp, `${fa(g.adults)} بزرگسال${g.kids ? ` + ${fa(g.kids)} کودک` : ""}`, g.phone ? faDigits(g.phone) : ""].filter(Boolean).map(esc).join(" · ")}</small>${shareLine(g)}</div>
-        ${g.phone ? `<a class="btn icon ghost call" href="tel:${esc(latin(g.phone))}" aria-label="تماس با ${esc(g.name)}">${ic("phone")}</a>` : "<span></span>"}
-        <div class="status" role="group" aria-label="وضعیت ${esc(g.name)}">${STATUS_BTNS.map(s => `<button type="button" data-s="${s}" data-g="${g.id}" aria-pressed="${g.status === s}">${STATUS[s]}</button>`).join("")}</div></div>`).join("") || `<div class="empty">${ic("users", "big")}<p>مهمانی اینجا نیست.</p></div>`}</div>
+    <p class="muted" style="margin:0 2px 8px;font-size:12.5px">${fa(list.length)} خانواده · ${fa(total)} نفر (${fa(list.reduce((a, g) => a + (g.adults || 0), 0))} بزرگسال، ${fa(list.reduce((a, g) => a + (g.kids || 0), 0))} کودک)</p>
+    <div class="list">${list.map(g => `<div class="row" data-id="${g.id}"><div class="t" data-edit="${g.id}" role="button" tabindex="0"><span>${esc(g.name)}</span><small>${[g.grp, `${fa(g.adults)} بزرگسال${g.kids ? ` + ${fa(g.kids)} کودک` : ""}`, g.phone ? faDigits(g.phone) : ""].filter(Boolean).map(esc).join(" · ")}</small>${g.note ? `<small class="note">${esc(g.note)}</small>` : ""}${shareLine(g)}</div>
+        <div class="acts">${g.phone ? `<a class="btn icon ghost call" href="tel:${esc(latin(g.phone))}" aria-label="تماس با ${esc(g.name)}">${ic("phone")}</a>` : ""}
+        <select class="st-sel" data-st="${g.status}" data-g="${g.id}" aria-label="وضعیت ${esc(g.name)}">${["none", ...STATUS_BTNS].map(s => `<option value="${s}" ${g.status === s ? "selected" : ""}>${STATUS[s]}</option>`).join("")}</select></div></div>`).join("") || `<div class="empty">${ic("users", "big")}<p>مهمانی اینجا نیست.</p></div>`}</div>
     <button class="fab" type="button" id="add">${ic("userplus")}مهمان</button>`;
   $("#gq").oninput = e => { S.gq = e.target.value; const pos = e.target.selectionStart; VIEWS.guests(m); const i = $("#gq"); i.focus(); i.setSelectionRange(pos, pos); };
   $$("[data-f]", m).forEach(b => b.onclick = () => { S.gFilter = b.dataset.f; VIEWS.guests(m); });
-  $$("[data-s]", m).forEach(b => b.onclick = async () => {
-    const g = G.find(x => x.id === +b.dataset.g), s = g.status === b.dataset.s ? "none" : b.dataset.s;
-    $$(`[data-g="${g.id}"]`, m).forEach(x => x.setAttribute("aria-pressed", x.dataset.s === s));
+  $$(".st-sel", m).forEach(b => b.onchange = async () => {
+    const g = G.find(x => x.id === +b.dataset.g), s = b.value; b.dataset.st = s; if (s === "yes") confetti(b);
     try { Object.assign(g, await api(`/api/events/${S.ev.id}/guests`, { ...g, status: s })); S.stamp = ""; const y = scrollY; VIEWS.guests(m); scrollTo(0, y); } catch (e) { toast(e.message, true); reload(); }
   });
   $$("[data-edit]", m).forEach(el => el.onclick = el.onkeydown = e => { if (e.type === "keydown" && e.key !== "Enter") return; editGuest(G.find(g => g.id === +el.dataset.edit)); });
@@ -326,7 +337,7 @@ VIEWS.shop = m => {
       ${e.budget ? `<div class="bar${spent > e.budget ? " over" : ""}" style="margin-top:6px"><i style="width:${Math.min(100, Math.round(spent / e.budget * 100))}%"></i></div>` : ""}</section>
     ${sharePanel()}
     ${cats.map(c => { const L = I.filter(i => (i.cat || "سایر") === c);
-      return `<div class="cat"><span>${esc(c)}</span><span>${fa(L.filter(i => i.bought).length)} از ${fa(L.length)}</span></div><div class="list">${L.map(i => `<div class="row task${i.bought ? " done" : ""}">
+      return `<div class="cat"><span>${esc(c)} <span class="muted" style="font-weight:500">· ${fa(L.filter(i => i.bought).length)} از ${fa(L.length)}</span></span><span>${fa(L.reduce((a, i) => a + (i.actual || i.est), 0))} تومان</span></div><div class="list">${L.map(i => `<div class="row task${i.bought ? " done" : ""}">
         <button class="check" type="button" role="checkbox" aria-checked="${!!i.bought}" aria-label="خریده شد: ${esc(i.title)}" data-b="${i.id}"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></button>
         <div class="t" data-edit="${i.id}" role="button" tabindex="0"><span>${esc(i.title)}</span><small>${esc(i.amount ? amt(i.amount, i.unit) : i.qty)}${i.food && i.amount ? " · تقسیم بین مهمان‌ها" : ""}</small></div>
         <div class="money num">${i.actual ? `${fa(i.actual)}${i.est && i.est !== i.actual ? `<s>${fa(i.est)}</s>` : ""}` : i.est ? fa(i.est) : "—"}</div></div>`).join("")}</div>`; }).join("") || `<p class="empty">چیزی برای خرید ثبت نشده.</p>`}
