@@ -297,3 +297,37 @@ dialog form { padding: 18px; }
 .paused .hero .deco *, .paused .login::before, .paused .login::after { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) { .hero .deco, .login::before, .login::after, .ripple, .rain { display: none; } .tab-pill { transition: none; } }
 .cover-pick .prev { background: linear-gradient(135deg, var(--accent), var(--accent2)) center/cover; }
+
+/* ================= compact pass (owner, 2026-11-25: «روی گوشی زومه، جزییات بیشتر») ================= */
+body { font-size: 14px; line-height: 1.55; }
+.top { padding: calc(6px + env(safe-area-inset-top)) 10px 6px; } .top h1 { font-size: 16px; }
+.btn { min-height: 40px; padding: 0 14px; border-radius: 11px; font-size: 14px; } .btn.sm { min-height: 34px; padding: 0 10px; font-size: 13px; } .btn.icon { width: 40px; }
+main { padding: 10px 12px calc(130px + env(safe-area-inset-bottom)); }
+.hero { padding: 16px 16px; border-radius: 20px; margin-bottom: 10px; } .hero .big { font-size: 42px; } .hero .unit { font-size: 14px; } .hero .when { margin-top: 8px; font-size: 13px; }
+.strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.strip span { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.strip b { color: var(--ink); } .strip .ic { width: 15px; height: 15px; } .strip .warn { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 30%, transparent); } .strip .warn b { color: var(--bad); }
+.tiles { gap: 8px; margin-bottom: 10px; } .tile { padding: 10px 12px; border-radius: 14px; } .tile b { font-size: 24px; } .tile span { font-size: 12px; } .tile .ic { width: 19px; height: 19px; top: 10px; }
+.panel { padding: 12px 14px; margin-bottom: 10px; } .panel h3 { font-size: 14px; margin-bottom: 8px; }
+.kv { font-size: 13px; padding: 3px 0; } .kv.log span:first-child { min-width: 0; } .kv.log b { font-weight: 700; }
+.chips { gap: 6px; margin-bottom: 8px; } .chip { min-height: 32px; padding: 0 12px; font-size: 12.5px; }
+.list { gap: 6px; } .row { padding: 9px 12px; border-radius: 14px; gap: 4px 8px; } .row .t { font-size: 14px; } .row .t small { font-size: 12px; }
+.row .t small.note { color: var(--ink); opacity: .75; font-style: italic; }
+.status button { min-height: 30px; font-size: 12px; border-radius: 7px; }
+.check { width: 24px; height: 24px; border-radius: 7px; } .check svg { width: 14px; height: 14px; }
+.due { display: grid; justify-items: end; font-size: 12px; } .due small { font-size: 11px; color: var(--muted); } .due.soon small { color: var(--warn); font-weight: 700; } .due.late small { color: var(--bad); }
+.money { font-size: 13px; } .cat { margin: 10px 2px 5px; font-size: 12.5px; }
+.tabs button { min-height: 52px; padding: 6px 2px; font-size: 11px; } .tabs svg { width: 21px; height: 21px; } .tab-pill { top: 5px; height: 42px; }
+.fab { min-height: 46px; padding: 0 16px 0 18px; font-size: 14px; bottom: calc(66px + env(safe-area-inset-bottom)); } .fab .ic { width: 20px; height: 20px; }
+.share { font-size: 12px; margin-top: 2px; }
+.party .band { height: 86px; } .party .b { padding: 10px 12px; } .party h2 { font-size: 15.5px; } .party .meta { font-size: 12px; gap: 8px; }
+dialog form { padding: 14px; } .field { margin-bottom: 10px; } .field > span { font-size: 12.5px; }
+input[type=text], input[type=password], input[type=tel], input[type=search], input[type=url], select, textarea { min-height: 40px; padding: 7px 11px; } /* stays 16px: iOS zooms smaller inputs */
+
+/* guest row: name + details on one side, call + a status pill on the other */
+.row .acts { display: flex; align-items: center; gap: 6px; }
+.st-sel { -webkit-appearance: none; appearance: none; min-height: 32px !important; width: auto !important; padding: 4px 12px !important; border-radius: 999px !important; border: 0 !important;
+  font-size: 12.5px !important; font-weight: 700; text-align: center; cursor: pointer; background: var(--surface-2); color: var(--muted); transition: background-color .18s, color .18s, transform .2s var(--spring); }
+.st-sel:active { transform: scale(.94); }
+.st-sel[data-st="yes"] { background: var(--ok-soft); color: var(--ok); } .st-sel[data-st="maybe"] { background: var(--warn-soft); color: var(--warn); }
+.st-sel[data-st="no"] { background: var(--bad-soft); color: var(--bad); } .st-sel[data-st="invited"] { background: var(--info-soft); color: var(--info); }
