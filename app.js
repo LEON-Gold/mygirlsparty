@@ -14,6 +14,10 @@ const jIn = iso => iso ? faDigits(jalaliText(iso)) : "";
 const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 const daysTo = iso => iso ? Math.round((Date.parse(iso) - Date.parse(today())) / 864e5) : null;
 const toman = n => fa(n) + " تومان";
+// the invitation page lives on GitHub Pages and reads the public data, so the link works for any guest
+const INVITE = "https://leon-gold.github.io/mygirlsparty/invite.html";
+const inviteLink = (e, g) => `${INVITE}?e=${e.id}${g ? "&g=" + g.id : ""}`;
+const inviteText = (e, g) => `${g ? g.name + " عزیز، سلام 🌸\n" : ""}${e.invite || "با خوشحالی شما را به جشن دعوت می‌کنیم."}\n\n💌 دعوت‌نامه را باز کنید:\n${inviteLink(e, g)}`;
 const amt = (n, unit) => `${fa(n)} ${unit || ""}`.trim();
 const IC = {
   plus: '<path d="M12 5v14M5 12h14"/>', back: '<path d="M9 6l6 6-6 6"/>', users: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5"/><circle cx="17.5" cy="9.5" r="2.4"/><path d="M16 14.6c2.6.2 4.3 2 4.9 4.9"/>',
@@ -283,7 +287,8 @@ VIEWS.guests = m => {
 };
 function editGuest(g) {
   const groups = [...new Set(["فامیل", "دوستان", "همکاران", "بچه‌ها", ...S.data.guests.map(x => x.grp).filter(Boolean)])];
-  const wa = g.phone && S.ev.invite ? `https://wa.me/${latin(g.phone).replace(/\D/g, "").replace(/^0/, "98")}?text=${encodeURIComponent(S.ev.invite + (S.ev.date ? "\n" + faDate(S.ev.date) : "") + (S.ev.time ? " ساعت " + S.ev.time : "") + (S.ev.place ? "\n" + S.ev.place : ""))}` : "";
+  // the WhatsApp text carries this guest's own invitation link (envelope page, owner 2026-11-25)
+  const wa = g.phone && g.id ? `https://wa.me/${latin(g.phone).replace(/\D/g, "").replace(/^0/, "98")}?text=${encodeURIComponent(inviteText(S.ev, g))}` : "";
   dialog(`<div class="dlg-head"><h3>${g.id ? "ویرایش مهمان" : "مهمان جدید"}</h3></div>
     <label class="field"><span>نام (یا نام خانواده)</span><input name="name" type="text" value="${esc(g.name)}" required></label>
     <div class="grid2"><label class="field"><span>تلفن</span><input name="phone" type="tel" dir="ltr" value="${esc(g.phone)}"></label>
@@ -396,11 +401,12 @@ VIEWS.party = m => {
       <div class="kv"><span>مکان</span><b>${esc(e.place) || "—"}</b></div>${e.address ? `<p class="muted" style="margin:4px 0">${esc(e.address)}</p>` : ""}
       ${e.map ? `<a class="btn sm" href="${esc(e.map)}" target="_blank" rel="noopener" style="margin-top:6px">نقشه</a>` : ""}
       ${e.invite ? `<p style="white-space:pre-line;margin:12px 0 0;padding:10px 12px;border-radius:12px;background:var(--soft)">${esc(e.invite)}</p>` : ""}
-      <div class="dlg-foot"><button class="btn primary" type="button" id="ed">${ic("edit")}ویرایش جشن</button>${e.invite && navigator.share ? `<button class="btn" type="button" id="sh">${ic("share")}فرستادن متن دعوت</button>` : ""}</div></section>
+      <div class="dlg-foot"><button class="btn primary" type="button" id="ed">${ic("edit")}ویرایش جشن</button>${navigator.share ? `<button class="btn" type="button" id="sh">${ic("share")}فرستادن دعوت‌نامه</button>` : ""}<a class="btn" href="${inviteLink(e)}" target="_blank" rel="noopener">${ic("sparkle")}پیش‌نمایش دعوت‌نامه</a></div>
+      <p class="muted" style="font-size:12.5px;margin:8px 0 0">در صفحهٔ هر مهمان، «دعوت در واتس‌اپ» دعوت‌نامهٔ مخصوص همان مهمان را با اسمش می‌فرستد.</p></section>
     <section class="card panel"><h3>کارهای دیگر</h3><div class="dlg-foot" style="margin:0"><button class="btn" type="button" id="adm">${ic("users")}ادمین‌ها</button><button class="btn ghost danger" type="button" id="del">${ic("trash")}حذف این جشن</button></div></section>`;
   $("#ed").onclick = () => editEvent(e);
   $("#adm").onclick = adminsView;
-  $("#sh") && ($("#sh").onclick = () => navigator.share({ text: e.invite + (e.date ? "\n" + faDate(e.date) : "") + (e.time ? " ساعت " + e.time : "") + (e.place ? "\n" + e.place : "") + (e.map ? "\n" + e.map : "") }).catch(() => {}));
+  $("#sh") && ($("#sh").onclick = () => navigator.share({ text: inviteText(e) }).catch(() => {}));
   $("#del").onclick = async () => { if (!confirm(`«${e.title}» با همهٔ مهمان‌ها، کارها و خریدهایش حذف شود؟`)) return; await api(`/api/events/${e.id}/delete`, {}); toast("حذف شد"); listView(); };
 };
 function editEvent(e) {
