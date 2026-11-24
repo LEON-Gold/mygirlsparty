@@ -1,5 +1,6 @@
 // Party manager panel (admins only). Parties → summary, guests, to-dos, shopping, party settings.
 import { jalaliText } from "./jalali.js";
+import { computeShares, UNITS } from "./share.js?v=2";
 
 // ---------- helpers ----------
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -13,6 +14,9 @@ const jIn = iso => iso ? faDigits(jalaliText(iso)) : "";
 const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 const daysTo = iso => iso ? Math.round((Date.parse(iso) - Date.parse(today())) / 864e5) : null;
 const toman = n => fa(n) + " تومان";
+const amt = (n, unit) => `${fa(n)} ${unit || ""}`.trim();
+const FOOD_CATS = ["خوراکی", "کیک", "پذیرایی", "نوشیدنی", "میوه", "شیرینی", "غذا"];
+const shares = () => computeShares(S.data.guests, S.data.items, S.ev);
 
 const KEY = "party.token";
 const token = { get: () => { try { return localStorage.getItem(KEY) || ""; } catch { return ""; } }, set: t => { try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch {} } };
@@ -161,11 +165,12 @@ VIEWS.guests = m => {
     ...Object.fromEntries(groups.map(x => ["g:" + x, [x, g => g.grp === x]])) };
   if (!F[S.gFilter]) S.gFilter = "all";
   const q = latin(S.gq).trim(), list = G.filter(F[S.gFilter][1]).filter(g => !q || g.name.includes(q) || latin(g.phone).includes(q));
-  const total = list.reduce((a, g) => a + people(g), 0);
+  const total = list.reduce((a, g) => a + people(g), 0), SH = shares();
+  const shareLine = g => { const parts = SH.items.filter(i => i.shares[g.id] > 0).map(i => `${i.title} ${amt(i.shares[g.id], i.unit)}`); return parts.length ? `<div class="share">سهم: ${parts.map(esc).join(" · ")}</div>` : ""; };
   m.innerHTML = `<div class="tools"><input type="search" id="gq" placeholder="جستجوی نام یا تلفن" value="${esc(S.gq)}" aria-label="جستجو"></div>
     <div class="chips" role="group" aria-label="فیلتر">${Object.entries(F).map(([k, [t, f]]) => `<button class="chip" type="button" data-f="${esc(k)}" aria-pressed="${k === S.gFilter}">${esc(t)}<small>${fa(G.filter(f).length)}</small></button>`).join("")}</div>
     <p class="muted" style="margin:0 2px 8px;font-size:13px">${fa(list.length)} خانواده · ${fa(total)} نفر</p>
-    <div class="list">${list.map(g => `<div class="row" data-id="${g.id}"><div class="t" data-edit="${g.id}" role="button" tabindex="0"><span>${esc(g.name)}</span><small>${[g.grp, `${fa(g.adults)} بزرگسال${g.kids ? ` + ${fa(g.kids)} کودک` : ""}`, g.phone ? faDigits(g.phone) : ""].filter(Boolean).map(esc).join(" · ")}</small></div>
+    <div class="list">${list.map(g => `<div class="row" data-id="${g.id}"><div class="t" data-edit="${g.id}" role="button" tabindex="0"><span>${esc(g.name)}</span><small>${[g.grp, `${fa(g.adults)} بزرگسال${g.kids ? ` + ${fa(g.kids)} کودک` : ""}`, g.phone ? faDigits(g.phone) : ""].filter(Boolean).map(esc).join(" · ")}</small>${shareLine(g)}</div>
         ${g.phone ? `<a class="btn sm ghost" href="tel:${esc(latin(g.phone))}" aria-label="تماس با ${esc(g.name)}">تماس</a>` : "<span></span>"}
         <div class="status" role="group" aria-label="وضعیت ${esc(g.name)}">${STATUS_BTNS.map(s => `<button type="button" data-s="${s}" data-g="${g.id}" aria-pressed="${g.status === s}">${STATUS[s]}</button>`).join("")}</div></div>`).join("") || `<p class="empty">مهمانی نیست.</p>`}</div>
     <button class="fab" type="button" id="add">+ مهمان</button>`;
@@ -193,7 +198,7 @@ function editGuest(g) {
     ${g.by ? `<p class="muted" style="font-size:12px;margin:0">آخرین تغییر: ${esc(g.by)}</p>` : ""}`
     + foot(`${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">فرستادن دعوت در واتس‌اپ</a>` : ""}${g.id ? `<button class="btn ghost danger" value="ok" data-del>حذف</button>` : ""}`), async (f, b) => {
     if (b.hasAttribute("data-del")) { if (!confirm(`«${g.name}» حذف شود؟`)) return false; await api(`/api/guests/${g.id}/delete`, {}); toast("حذف شد"); return reload(); }
-    await api(`/api/events/${S.ev.id}/guests`, { id: g.id, name: f.name.value, phone: latin(f.phone.value), grp: f.grp.value, adults: num(f.adults.value), kids: num(f.kids.value), status: f.status.value, note: f.note.value });
+    await api(`/api/events/${S.ev.id}/guests`, { id: g.id, name: f.elements.name.value, phone: latin(f.phone.value), grp: f.grp.value, adults: num(f.adults.value), kids: num(f.kids.value), status: f.status.value, note: f.note.value });
     toast("ذخیره شد"); await reload();
   });
 }
@@ -221,7 +226,7 @@ function editTask(t) {
     <label class="field"><span>یادداشت</span><textarea name="note" rows="2">${esc(t.note)}</textarea></label>`
     + foot(t.id ? `<button class="btn ghost danger" value="ok" data-del>حذف</button>` : ""), async (f, b) => {
     if (b.hasAttribute("data-del")) { if (!confirm("این کار حذف شود؟")) return false; await api(`/api/tasks/${t.id}/delete`, {}); return reload(); }
-    await api(`/api/events/${S.ev.id}/tasks`, { id: t.id, title: f.title.value, due: latin(f.due.value), who: f.who.value, note: f.note.value, done: t.done });
+    await api(`/api/events/${S.ev.id}/tasks`, { id: t.id, title: f.elements.title.value, due: latin(f.due.value), who: f.who.value, note: f.note.value, done: t.done });
     toast("ذخیره شد"); await reload();
   });
 }
@@ -233,32 +238,54 @@ VIEWS.shop = m => {
   m.innerHTML = `<section class="card panel"><div class="kv"><span>بودجه</span><b>${e.budget ? cnt(e.budget) + " تومان" : "—"}</b></div>
       <div class="kv"><span>برآورد کل</span><b>${cnt(est)} تومان</b></div><div class="kv"><span>خرج شده</span><b>${cnt(spent)} تومان</b></div>
       ${e.budget ? `<div class="bar${spent > e.budget ? " over" : ""}" style="margin-top:6px"><i style="width:${Math.min(100, Math.round(spent / e.budget * 100))}%"></i></div>` : ""}</section>
+    ${sharePanel()}
     ${cats.map(c => { const L = I.filter(i => (i.cat || "سایر") === c);
       return `<div class="cat"><span>${esc(c)}</span><span>${fa(L.filter(i => i.bought).length)} از ${fa(L.length)}</span></div><div class="list">${L.map(i => `<div class="row task${i.bought ? " done" : ""}">
         <button class="check" type="button" role="checkbox" aria-checked="${!!i.bought}" aria-label="خریده شد: ${esc(i.title)}" data-b="${i.id}"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></button>
-        <div class="t" data-edit="${i.id}" role="button" tabindex="0"><span>${esc(i.title)}</span><small>${esc(i.qty)}</small></div>
+        <div class="t" data-edit="${i.id}" role="button" tabindex="0"><span>${esc(i.title)}</span><small>${esc(i.amount ? amt(i.amount, i.unit) : i.qty)}${i.food && i.amount ? " · تقسیم بین مهمان‌ها" : ""}</small></div>
         <div class="money num">${i.actual ? `${fa(i.actual)}${i.est && i.est !== i.actual ? `<s>${fa(i.est)}</s>` : ""}` : i.est ? fa(i.est) : "—"}</div></div>`).join("")}</div>`; }).join("") || `<p class="empty">چیزی برای خرید ثبت نشده.</p>`}
     <button class="fab" type="button" id="add">+ قلم خرید</button>`;
+  $("#shtable", m) && ($("#shtable", m).onclick = shareTable);
+  $("#shset", m) && ($("#shset", m).onclick = () => editEvent(S.ev));
   $$("[data-b]", m).forEach(b => b.onclick = async () => {
     const i = I.find(x => x.id === +b.dataset.b); i.bought = i.bought ? 0 : 1; b.setAttribute("aria-checked", !!i.bought); b.closest(".row").classList.toggle("done", !!i.bought);
     try { await api(`/api/events/${S.ev.id}/items`, i); setTimeout(reload, 450); } catch (e) { toast(e.message, true); reload(); }
   });
   $$("[data-edit]", m).forEach(el => el.onclick = () => editItem(I.find(i => i.id === +el.dataset.edit)));
-  $("#add").onclick = () => editItem({ title: "", cat: cats[0] === "سایر" ? "" : cats[0] || "", qty: "", est: 0, actual: 0, bought: 0, note: "" });
+  $("#add").onclick = () => editItem({ title: "", cat: cats[0] === "سایر" ? "" : cats[0] || "", qty: "", est: 0, actual: 0, bought: 0, note: "", amount: 0, unit: "", food: 0 });
 };
+// the food-share panel on the shopping page
+function sharePanel() {
+  const SH = shares(), e = S.ev;
+  if (!S.data.items.some(i => i.food && i.amount)) return `<section class="card panel"><h3>تقسیم غذا</h3><p class="muted" style="margin:0;font-size:13.5px">برای خوراکی‌ها مقدار و واحد بزنید (مثلاً ۴۰ برش کیک) و «بین مهمان‌ها تقسیم شود» را روشن کنید تا سهم هر نفر حساب شود.</p></section>`;
+  return `<section class="card panel"><h3>تقسیم غذا <small>${fa(SH.people)} نفر${e.kidShare < 1 ? ` · کودک ${e.kidShare === .5 ? "نصف" : "یک‌سوم"} سهم` : ""}${e.shareMaybe ? " · «شاید»ها هم" : ""}</small></h3>
+    ${SH.totalWeight ? SH.items.map(i => `<div class="kv"><span>${esc(i.title)} <span class="muted">(${amt(i.amount, i.unit)})</span></span><b>هر نفر ${amt(i.perPerson, i.unit)}</b></div>`).join("") : `<p class="muted" style="margin:0">هنوز کسی «می‌آید» نیست.</p>`}
+    <div class="dlg-foot">${SH.totalWeight ? `<button class="btn primary sm" type="button" id="shtable">سهم هر خانواده</button>` : ""}<button class="btn sm ghost" type="button" id="shset">تنظیم تقسیم</button></div></section>`;
+}
+function shareTable() {
+  const SH = shares();
+  const d = document.createElement("dialog");
+  d.innerHTML = `<form method="dialog"><div class="dlg-head"><h3>سهم هر خانواده</h3><button class="btn sm ghost" value="x">بستن</button></div>
+    <div class="list">${SH.groups.map(g => `<div class="row" style="grid-template-columns:1fr"><div class="t"><span>${esc(g.name)}</span><small>${fa(g.people)} نفر</small>
+      <div class="share">${SH.items.map(i => `${esc(i.title)}: <b>${amt(i.shares[g.id] || 0, i.unit)}</b>`).join(" · ")}</div></div></div>`).join("")}</div>
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0">چیزهای شمردنی (برش، لیوان، عدد) کامل تقسیم شده و جمعشان دقیقاً برابر کل است.</p></form>`;
+  document.body.append(d); d.showModal(); d.onclose = () => d.remove(); d.addEventListener("click", e => { if (e.target === d) d.close(); });
+}
 function editItem(i) {
   const cats = [...new Set(["خوراکی", "تزئینات", "کیک", "هدیه", "پذیرایی", "لباس", ...S.data.items.map(x => x.cat).filter(Boolean)])];
   dialog(`<div class="dlg-head"><h3>${i.id ? "ویرایش خرید" : "قلم جدید"}</h3></div>
     <label class="field"><span>چه چیزی؟</span><input name="title" type="text" value="${esc(i.title)}" required></label>
     <div class="grid2"><label class="field"><span>دسته</span><input name="cat" type="text" list="cats" value="${esc(i.cat)}"><datalist id="cats">${cats.map(x => `<option value="${esc(x)}">`).join("")}</datalist></label>
-      <label class="field"><span>مقدار</span><input name="qty" type="text" value="${esc(i.qty)}" placeholder="مثلاً ۲ کیلو"></label>
+      <label class="field"><span>مقدار (عدد)</span><input name="amount" type="text" inputmode="decimal" value="${i.amount ? fa(i.amount) : ""}" placeholder="مثلاً ۴۰"></label>
+      <label class="field"><span>واحد</span><input name="unit" type="text" list="units" value="${esc(i.unit || "")}" placeholder="برش، کیلو، لیوان…"><datalist id="units">${UNITS.map(u => `<option value="${u}">`).join("")}</datalist></label>
+      <label class="field" style="grid-column:1/-1;display:flex;gap:8px;align-items:center;margin-top:-4px"><input name="food" type="checkbox" ${(i.id ? i.food : FOOD_CATS.includes(i.cat)) ? "checked" : ""} style="width:20px;height:20px;accent-color:var(--accent)"> بین مهمان‌ها تقسیم شود</label>
       <label class="field"><span>قیمت تخمینی (تومان)</span><input name="est" type="text" inputmode="numeric" value="${i.est ? fa(i.est) : ""}"></label>
       <label class="field"><span>قیمت واقعی (تومان)</span><input name="actual" type="text" inputmode="numeric" value="${i.actual ? fa(i.actual) : ""}"></label></div>
     <label class="field" style="display:flex;gap:8px;align-items:center"><input name="bought" type="checkbox" ${i.bought ? "checked" : ""} style="width:20px;height:20px;accent-color:var(--accent)"> خریده شد</label>
     <label class="field"><span>یادداشت</span><textarea name="note" rows="2">${esc(i.note)}</textarea></label>`
     + foot(i.id ? `<button class="btn ghost danger" value="ok" data-del>حذف</button>` : ""), async (f, b) => {
     if (b.hasAttribute("data-del")) { if (!confirm("حذف شود؟")) return false; await api(`/api/items/${i.id}/delete`, {}); return reload(); }
-    await api(`/api/events/${S.ev.id}/items`, { id: i.id, title: f.title.value, cat: f.cat.value, qty: f.qty.value, est: num(f.est.value), actual: num(f.actual.value), bought: f.bought.checked, note: f.note.value });
+    await api(`/api/events/${S.ev.id}/items`, { id: i.id, title: f.elements.title.value, cat: f.cat.value, est: num(f.est.value), actual: num(f.actual.value), bought: f.bought.checked, note: f.note.value, qty: i.qty || "", amount: latin(f.amount.value).replace(/[٫\/]/g, ".").replace(/[٬,\s]/g, ""), unit: f.unit.value, food: f.food.checked });
     toast("ذخیره شد"); await reload();
   });
 }
@@ -290,9 +317,13 @@ function editEvent(e) {
     <label class="field"><span>بودجه (تومان)</span><input name="budget" type="text" inputmode="numeric" value="${e.budget ? fa(e.budget) : ""}"></label>
     <label class="field"><span>متن دعوت (برای فرستادن به مهمان‌ها)</span><textarea name="invite" rows="3">${esc(e.invite || "")}</textarea></label>
     <div class="cover-pick"><div class="prev" id="cp" style="${cover ? `background-image:url('${esc(cover)}')` : ""}"></div><div><label class="btn sm">عکس کاور<input type="file" accept="image/*" id="cf" hidden></label> ${cover ? `<button class="btn sm ghost" type="button" id="cx">حذف</button>` : ""}</div></div>
+    <fieldset class="field" style="border:1px solid var(--line);border-radius:12px;padding:10px 12px"><legend style="font-size:13px;color:var(--muted);padding:0 4px">تقسیم غذا</legend>
+      <div class="grid2"><label class="field"><span>سهم هر کودک</span><select name="kidShare">${[[1, "کامل"], [0.5, "نصف"], [0.33, "یک‌سوم"]].map(([v, t]) => `<option value="${v}" ${(e.kidShare ?? 1) == v ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+        <label class="field"><span>نفرات خانهٔ خودمان</span><input name="hosts" type="text" inputmode="numeric" value="${e.hosts ? fa(e.hosts) : ""}" placeholder="۰"></label></div>
+      <label style="display:flex;gap:8px;align-items:center"><input name="shareMaybe" type="checkbox" ${e.shareMaybe ?? 1 ? "checked" : ""} style="width:20px;height:20px;accent-color:var(--accent)"> «شاید»ها هم حساب شوند</label></fieldset>
     <div class="field"><span>رنگ جشن</span><div class="swatches">${COLORS.map(c => `<label style="--c:${c}" aria-label="رنگ ${c}"><input type="radio" name="color" value="${c}" ${c === (e.color || COLORS[0]) ? "checked" : ""}><span></span></label>`).join("")}</div></div>`
     + foot(), async f => {
-    const r = await api("/api/events", { id: e.id, title: f.title.value, date: latin(f.date.value), time: latin(f.time.value), place: f.place.value, address: f.address.value, map: f.map.value.trim(), budget: num(f.budget.value), invite: f.invite.value, color: f.color.value, cover });
+    const r = await api("/api/events", { id: e.id, title: f.elements.title.value, date: latin(f.date.value), time: latin(f.time.value), place: f.place.value, address: f.address.value, map: f.map.value.trim(), budget: num(f.budget.value), invite: f.invite.value, color: f.color.value, cover, kidShare: +f.kidShare.value, hosts: num(f.hosts.value), shareMaybe: f.shareMaybe.checked });
     toast("ذخیره شد"); if (e.id) { await reload(); setAccent(S.ev.color); $(".top h1").textContent = S.ev.title; } else openEvent(r.id);
   });
   $("#cf", d).onchange = async ev => { const file = ev.target.files[0]; if (!file) return; try { cover = (await api("/api/upload", { data: await shrink(file) })).url; $("#cp", d).style.backgroundImage = `url('${cover}')`; } catch (err) { toast(err.message, true); } };
@@ -311,7 +342,7 @@ async function adminsView() {
     <div class="grid2"><label class="field"><span>نام</span><input name="name" type="text"></label><label class="field"><span>نام کاربری (انگلیسی)</span><input name="username" type="text" dir="ltr" autocapitalize="none"></label></div>
     <label class="field"><span>رمز (حداقل ۶ حرف)</span><input name="password" type="text" dir="ltr" autocomplete="off"></label>
     <div class="dlg-foot"><button class="btn primary" value="ok">افزودن</button><button class="btn" type="button" id="pw">تغییر رمز من</button><button class="btn ghost" type="button" id="out">خروج</button><button class="btn ghost" value="x" formnovalidate>بستن</button></div>`, async f => {
-    await api("/api/admins", { name: f.name.value, username: latin(f.username.value), password: latin(f.password.value) }); toast("ادمین اضافه شد"); setTimeout(adminsView, 50);
+    await api("/api/admins", { name: f.elements.name.value, username: latin(f.username.value), password: latin(f.password.value) }); toast("ادمین اضافه شد"); setTimeout(adminsView, 50);
   });
   $$("[data-rm]").forEach(b => b.onclick = async () => { if (!confirm("این ادمین حذف شود؟")) return; try { await api(`/api/admins/${b.dataset.rm}/delete`, {}); toast("حذف شد"); b.closest("dialog").close(); adminsView(); } catch (e) { toast(e.message, true); } });
   $("#out").onclick = async () => { try { await api("/api/logout", {}); } catch {} token.set(""); location.hash = ""; location.reload(); };

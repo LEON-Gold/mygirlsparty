@@ -29,6 +29,10 @@ export function openDb(file = path.join(DATA, "party.db")) {
     who TEXT DEFAULT '', done INTEGER DEFAULT 0, note TEXT DEFAULT '', by TEXT DEFAULT '', updated TEXT DEFAULT (datetime('now')));
   CREATE TABLE IF NOT EXISTS items(id INTEGER PRIMARY KEY, event INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE, title TEXT NOT NULL, cat TEXT DEFAULT '',
     qty TEXT DEFAULT '', est INTEGER DEFAULT 0, actual INTEGER DEFAULT 0, bought INTEGER DEFAULT 0, note TEXT DEFAULT '', by TEXT DEFAULT '', updated TEXT DEFAULT (datetime('now')));`);
+  // food shares (owner, 2026-11-24): amount + unit + "share among guests" on items; child share, maybe-counting and hosts on the party
+  const addCol = (t, c, def) => { if (!db.prepare(`PRAGMA table_info(${t})`).all().some(x => x.name === c)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${def}`); };
+  addCol("items", "amount", "REAL DEFAULT 0"); addCol("items", "unit", "TEXT DEFAULT ''"); addCol("items", "food", "INTEGER DEFAULT 0");
+  addCol("events", "kidShare", "REAL DEFAULT 1"); addCol("events", "shareMaybe", "INTEGER DEFAULT 1"); addCol("events", "hosts", "INTEGER DEFAULT 0");
   return db;
 }
 
@@ -36,6 +40,7 @@ export function openDb(file = path.join(DATA, "party.db")) {
 export const STATUSES = ["none", "invited", "yes", "maybe", "no"];
 const clean = (v, n = 200) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 const int = (v, lo = 0, hi = 1e12) => { const n = Math.round(+String(v ?? "").replace(/[٬,\s]/g, "").replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d)) || 0); return Math.max(lo, Math.min(hi, n)); };
+const dec = v => { const n = +String(v ?? "").replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٫\/]/g, ".").replace(/[٬,\s]/g, ""); return n > 0 && n < 1e7 ? Math.round(n * 100) / 100 : 0; };
 const color = v => /^#[0-9a-f]{6}$/i.test(String(v)) ? String(v) : "#c2416b";
 const fail = (status, msg) => { throw Object.assign(new Error(msg), { status }); };
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".webmanifest": "application/manifest+json",
@@ -55,8 +60,8 @@ const KINDS = {
     adults: int(b.adults ?? 1, 0, 50), kids: int(b.kids, 0, 50), status: STATUSES.includes(b.status) ? b.status : "none", note: clean(b.note, 300) }), order: "name" },
   tasks: { cols: ["title", "due", "who", "done", "note"], read: b => ({ title: clean(b.title, 120) || fail(400, "عنوان کار لازم است"), due: b.due ? (parseDate(b.due) || fail(400, "تاریخ را مثل ۱۴۰۵/۰۹/۱۰ بنویسید")) : "",
     who: clean(b.who, 40), done: b.done ? 1 : 0, note: clean(b.note, 300) }), order: "done, CASE WHEN due='' THEN 1 ELSE 0 END, due, id" },
-  items: { cols: ["title", "cat", "qty", "est", "actual", "bought", "note"], read: b => ({ title: clean(b.title, 120) || fail(400, "نام قلم لازم است"), cat: clean(b.cat, 30), qty: clean(b.qty, 30),
-    est: int(b.est), actual: int(b.actual), bought: b.bought ? 1 : 0, note: clean(b.note, 300) }), order: "bought, cat, id" },
+  items: { cols: ["title", "cat", "qty", "est", "actual", "bought", "note", "amount", "unit", "food"], read: b => ({ title: clean(b.title, 120) || fail(400, "نام قلم لازم است"), cat: clean(b.cat, 30), qty: clean(b.qty, 30),
+    est: int(b.est), actual: int(b.actual), bought: b.bought ? 1 : 0, note: clean(b.note, 300), amount: dec(b.amount), unit: clean(b.unit, 12), food: b.food ? 1 : 0 }), order: "bought, cat, id" },
 };
 
 export function createApp(db) {
@@ -131,7 +136,8 @@ export function createApp(db) {
       needUser(req);
       const f = { title: clean(b.title, 80) || fail(400, "عنوان جشن لازم است"), date: b.date ? (parseDate(b.date) || fail(400, "تاریخ را مثل ۱۴۰۵/۱۰/۰۵ بنویسید")) : "",
         time: clean(b.time, 20), place: clean(b.place, 80), address: clean(b.address, 300), map: /^https?:\/\//.test(String(b.map || "")) ? String(b.map).slice(0, 500) : "",
-        cover: String(b.cover || "").startsWith("uploads/") ? String(b.cover) : "", color: color(b.color), invite: String(b.invite || "").slice(0, 2000), budget: int(b.budget), archived: b.archived ? 1 : 0 };
+        cover: String(b.cover || "").startsWith("uploads/") ? String(b.cover) : "", color: color(b.color), invite: String(b.invite || "").slice(0, 2000), budget: int(b.budget), archived: b.archived ? 1 : 0,
+        kidShare: [1, 0.5, 0.33, 0].includes(+b.kidShare) ? +b.kidShare : 1, shareMaybe: b.shareMaybe === false || b.shareMaybe === 0 ? 0 : 1, hosts: int(b.hosts, 0, 50) };
       const cols = Object.keys(f);
       if (b.id) { event(+b.id); db.prepare(`UPDATE events SET ${cols.map(c => c + "=?").join(",")}, updated=datetime('now') WHERE id=?`).run(...Object.values(f), +b.id); }
       else b.id = db.prepare(`INSERT INTO events(${cols}) VALUES(${cols.map(() => "?")})`).run(...Object.values(f)).lastInsertRowid;
