@@ -161,7 +161,7 @@ async function open() {
   if (!party) { $("#intro").innerHTML = `<p class="empty">این دعوت‌نامه پیدا نشد. لینک را دوباره از میزبان بگیرید.</p>`; return; }
   petalColor = (party.color || "#d66e96").match(/\w\w/g).map(h => Math.min(255, parseInt(h, 16) + 70)).join(",");
   if (!gsap || reduced) { $("#intro").remove(); const l = buildLetter(); l.style.visibility = "visible"; petalRate = reduced ? 0 : 1.5; return; }
-  gsap.killTweensOf(["#env", "#seal"]);
+  gsap.killTweensOf(["#env", "#seal"]); gsap.set("#flap", { transformPerspective: 700 });
   const env = $("#env").getBoundingClientRect(), sx = env.left + env.width / 2, sy = env.top + env.height * .52;
   const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
   tl.to("#tap, #for", { opacity: 0, y: -10, duration: .35 })
@@ -171,9 +171,9 @@ async function open() {
     .add(() => burst(sx, sy, 40))
     .to("#seal .l", { x: -46, y: 70, rotation: -50, opacity: 0, duration: .8, ease: "power2.in" })
     .to("#seal .r", { x: 46, y: 70, rotation: 50, opacity: 0, duration: .8, ease: "power2.in" }, "<")
-    .to("#seal b", { scale: 0, opacity: 0, duration: .3 }, "<")
+    .to("#seal b, #seal .sh", { scale: 0, opacity: 0, duration: .3 }, "<")
     // flap opens in 3D; once past edge-on it shows its inside and goes behind the card
-    .to("#flap", { rotationX: 180, duration: .9, ease: "power2.inOut", onUpdate() { const p = this.progress(); $("#flap").classList.toggle("inside", p > .5); $("#flap").style.zIndex = p > .5 ? 0 : 3; } }, "-=.55")
+    .to("#flap", { rotationX: 180, transformPerspective: 700, duration: .9, ease: "power2.inOut", onUpdate() { $("#flap").classList.toggle("inside", this.progress() > .5); } }, "-=.55")
     // card rises out of the envelope
     .to("#envCard", { yPercent: -62, duration: .85, ease: "power2.out" }, "-=.15")
     .add(() => { burst(sx, sy - env.height * .5, 110); petalRate = 14; })
